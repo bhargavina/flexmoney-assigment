@@ -46,6 +46,13 @@ const useStyles = makeStyles((theme) => ({
   label: {
     fontSize: "0.75rem",
   },
+  errorContainer: {
+    margin: "0.25rem 0",
+  },
+  errorText: {
+    fontSize: "0.5rem",
+    color: theme.palette.error.main,
+  },
   cardNumberContainer: {
     display: "flex",
     alignItems: "center",
@@ -98,12 +105,18 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
   },
-  submitContainer: {
+  buttonContainer: {
     display: "flex",
     alignItems: "center",
     flexGrow: 1,
     justifyContent: "flex-end",
     margin: "0.5rem 0",
+  },
+  resetButtonContainer: {
+    marginRight: "0.5rem",
+  },
+  submitButtonContainer: {
+    marginLeft: "0.5rem",
   },
   successContainer: {
     display: "flex",
@@ -135,6 +148,7 @@ function App() {
   const [successData, setSuccessData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   const classes = useStyles();
 
@@ -194,7 +208,7 @@ function App() {
 
   function handleExpiryYearChange(event) {
     const newText = event.target.value;
-    if (/^(2{1})([2-9]{0,1})$/.test(newText)) {
+    if (/^([0-9]{0,2})$/.test(newText)) {
       setExpiryYear(newText);
     } else if (newText === "") {
       setExpiryYear(newText);
@@ -210,34 +224,107 @@ function App() {
     }
   }
 
+  function areAllFieldsValid() {
+    let cardNumErrorMessage = "";
+    let expiryErrorMessage = "";
+    let cvvErrorMessage = "";
+    let nameErrorMessage = "";
+    if (
+      cardNum1.length !== 4 ||
+      cardNum2.length !== 4 ||
+      cardNum3.length !== 4 ||
+      cardNum4.length !== 4
+    ) {
+      cardNumErrorMessage = messages["CardDetails.cardNum.error.not16Digits"];
+    }
+    const lastDayOfEnteredMonthAndYear = new Date(
+      `20${expiryYear}`,
+      expiryMonth,
+      0
+    );
+
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const lastDayOfCurrentMonthAndYear = new Date(
+      currentYear,
+      currentMonth + 1,
+      0
+    );
+
+    if (expiryMonth.length !== 2 || expiryYear.length !== 2) {
+      expiryErrorMessage = messages["CardDetails.expiry.error.not2Digits"];
+    } else if (
+      lastDayOfCurrentMonthAndYear.valueOf() >=
+      lastDayOfEnteredMonthAndYear.valueOf()
+    ) {
+      expiryErrorMessage =
+        messages["CardDetails.expiry.error.beforeCurrentDate"];
+    }
+    if (cvv.length !== 3) {
+      cvvErrorMessage = messages["CardDetails.cvv.error.not3Digits"];
+    }
+    if (cardHolderName.length === 0) {
+      nameErrorMessage = messages["CardDetails.cardHolderName.error.nameEmpty"];
+    }
+    setValidationErrors({
+      cardNum: cardNumErrorMessage,
+      expiry: expiryErrorMessage,
+      cvv: cvvErrorMessage,
+      cardHolderName: nameErrorMessage,
+    });
+    return cardNumErrorMessage.length ||
+      expiryErrorMessage.length ||
+      cvvErrorMessage.length ||
+      nameErrorMessage.length
+      ? false
+      : true;
+  }
+
+  function handleResetClick() {
+    setCardNum1('');
+    setCardNum2('');
+    setCardNum3('');
+    setCardNum4('');
+    setCvv('');
+    setExpiryMonth('');
+    setExpiryYear('');
+    setCardHolderName('');
+    setSuccessData(null);
+    setIsError(false);
+    setValidationErrors({});
+  }
+
   function handleSubmitClick() {
-    const postBody = {
-      cardNo: `${cardNum1}${cardNum2}${cardNum3}${cardNum4}`,
-      cvv: +cvv,
-      expiryMonth: +expiryMonth,
-      expiryYear: +expiryYear,
-      name: cardHolderName,
-    };
-    setLoading(true);
-    axios({
-      method: "POST",
-      url: "https://run.mocky.io/v3/0b14a8da-5fc7-4443-8511-53d687399bc9",
-      data: postBody,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      withCredentials: false,
-    })
-      .then((res) => {
-        console.log("res: ", res);
-        setSuccessData(res.data.data);
-        setLoading(false);
+    if (areAllFieldsValid()) {
+      const postBody = {
+        cardNo: `${cardNum1}${cardNum2}${cardNum3}${cardNum4}`,
+        cvv: +cvv,
+        expiryMonth: +expiryMonth,
+        expiryYear: +expiryYear,
+        name: cardHolderName,
+      };
+      setLoading(true);
+      setIsError(false);
+      setSuccessData(null);
+      axios({
+        method: "POST",
+        url: "https://run.mocky.io/v3/0b14a8da-5fc7-4443-8511-53d687399bc9",
+        data: postBody,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        withCredentials: false,
       })
-      .catch((err) => {
-        console.log("err: ", err);
-        setIsError(true);
-        setLoading(false);
-      });
+        .then((res) => {
+          setSuccessData(res.data.data);
+          setLoading(false);
+        })
+        .catch((err) => {
+          setIsError(true);
+          setLoading(false);
+        });
+    }
   }
 
   return (
@@ -271,6 +358,7 @@ function App() {
                     InputProps={{ inputProps: { maxLength: 4 } }}
                     required
                     itemWidth={55}
+                    error={Boolean(validationErrors.cardNum)}
                     // id="card-num"
                   />
                 </div>
@@ -283,6 +371,7 @@ function App() {
                     InputProps={{ inputProps: { maxLength: 4 } }}
                     required
                     itemWidth={55}
+                    error={Boolean(validationErrors.cardNum)}
                     // id="card-num"
                   />
                 </div>
@@ -295,6 +384,7 @@ function App() {
                     InputProps={{ inputProps: { maxLength: 4 } }}
                     required
                     itemWidth={55}
+                    error={Boolean(validationErrors.cardNum)}
                     // id="card-num"
                   />
                 </div>
@@ -307,9 +397,18 @@ function App() {
                     InputProps={{ inputProps: { maxLength: 4 } }}
                     required
                     itemWidth={55}
+                    error={Boolean(validationErrors.cardNum)}
                     // id="card-num"
                   />
                 </div>
+              </div>
+              <div className={classes.errorContainer}>
+                <Typography
+                  variant="subtitle2"
+                  classes={{ root: classes.errorText }}
+                >
+                  {validationErrors.cardNum}
+                </Typography>
               </div>
             </div>
 
@@ -332,6 +431,7 @@ function App() {
                       InputProps={{ inputProps: { maxLength: 2 } }}
                       required
                       itemWidth={40}
+                      error={Boolean(validationErrors.expiry)}
                       // id="expiry-month"
                     />
                   </div>
@@ -354,9 +454,18 @@ function App() {
                       InputProps={{ inputProps: { maxLength: 2 } }}
                       required
                       itemWidth={36}
-                      id="expiry-year"
+                      error={Boolean(validationErrors.expiry)}
+                      // id="expiry-year"
                     />
                   </div>
+                </div>
+                <div className={classes.errorContainer}>
+                  <Typography
+                    variant="subtitle2"
+                    classes={{ root: classes.errorText }}
+                  >
+                    {validationErrors.expiry}
+                  </Typography>
                 </div>
               </div>
 
@@ -376,7 +485,16 @@ function App() {
                   itemWidth={45}
                   type="password"
                   id="cvv"
+                  error={Boolean(validationErrors.cvv)}
                 />
+                <div className={classes.errorContainer}>
+                  <Typography
+                    variant="subtitle2"
+                    classes={{ root: classes.errorText }}
+                  >
+                    {validationErrors.cvv}
+                  </Typography>
+                </div>
               </div>
             </div>
 
@@ -394,7 +512,16 @@ function App() {
                 required
                 align="left"
                 id="name"
+                error={Boolean(validationErrors.cardHolderName)}
               />
+              <div className={classes.errorContainer}>
+                <Typography
+                  variant="subtitle2"
+                  classes={{ root: classes.errorText }}
+                >
+                  {validationErrors.cardHolderName}
+                </Typography>
+              </div>
             </div>
 
             {successData && (
@@ -427,14 +554,25 @@ function App() {
               </div>
             )}
 
-            <div className={classes.submitContainer}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleSubmitClick}
-              >
-                {messages["Button.submit"]}
-              </Button>
+            <div className={classes.buttonContainer}>
+              <div className={classes.resetButtonContainer}>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  onClick={handleResetClick}
+                >
+                  {messages["Button.reset"]}
+                </Button>
+              </div>
+              <div className={classes.submitButtonContainer}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleSubmitClick}
+                >
+                  {messages["Button.submit"]}
+                </Button>
+              </div>
             </div>
           </div>
         </Paper>
