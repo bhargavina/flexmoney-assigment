@@ -1,15 +1,23 @@
 import {
   AppBar,
+  Backdrop,
+  Button,
+  CircularProgress,
   makeStyles,
   Paper,
   Toolbar,
   Typography,
 } from "@material-ui/core";
+import axios from "axios";
 import { useState } from "react";
 import TextField from "./components/TextField";
 import messages from "./constants/Messages";
+import { formatDateAndTime } from "./helpers/DateHelpers";
 
 const useStyles = makeStyles((theme) => ({
+  backdrop: {
+    zIndex: theme.zIndex.drawer + 1,
+  },
   mainContainer: {
     display: "flex",
     alignItems: "flex-start",
@@ -90,6 +98,29 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
   },
+  submitContainer: {
+    display: "flex",
+    alignItems: "center",
+    flexGrow: 1,
+    justifyContent: "flex-end",
+    margin: "0.5rem 0",
+  },
+  successContainer: {
+    display: "flex",
+    flexDirection: "column",
+    margin: "0.5rem 0",
+  },
+  successLabel: {
+    fontSize: "1rem",
+    color: theme.palette.success.main,
+  },
+  successDescription: {
+    fontSize: "0.5rem",
+  },
+  failureLabel: {
+    fontSize: "1rem",
+    color: theme.palette.error.main,
+  },
 }));
 
 function App() {
@@ -101,6 +132,9 @@ function App() {
   const [expiryMonth, setExpiryMonth] = useState("");
   const [expiryYear, setExpiryYear] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
+  const [successData, setSuccessData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const classes = useStyles();
 
@@ -160,7 +194,11 @@ function App() {
 
   function handleExpiryYearChange(event) {
     const newText = event.target.value;
-    setExpiryYear(newText);
+    if (/^(2{1})([2-9]{0,1})$/.test(newText)) {
+      setExpiryYear(newText);
+    } else if (newText === "") {
+      setExpiryYear(newText);
+    }
   }
 
   function handleCardHolderNameChange(event) {
@@ -172,13 +210,48 @@ function App() {
     }
   }
 
+  function handleSubmitClick() {
+    const postBody = {
+      cardNo: `${cardNum1}${cardNum2}${cardNum3}${cardNum4}`,
+      cvv: +cvv,
+      expiryMonth: +expiryMonth,
+      expiryYear: +expiryYear,
+      name: cardHolderName,
+    };
+    setLoading(true);
+    axios({
+      method: "POST",
+      url: "https://run.mocky.io/v3/0b14a8da-5fc7-4443-8511-53d687399bc9",
+      data: postBody,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      withCredentials: false,
+    })
+      .then((res) => {
+        console.log("res: ", res);
+        setSuccessData(res.data.data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.log("err: ", err);
+        setIsError(true);
+        setLoading(false);
+      });
+  }
+
   return (
     <div>
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6">FlexMoney Assignment</Typography>
+          <Typography variant="h6">{messages["Header.heading"]}</Typography>
         </Toolbar>
       </AppBar>
+      {loading && (
+        <Backdrop open classes={{ root: classes.backdrop }}>
+          <CircularProgress />
+        </Backdrop>
+      )}
       <main className={classes.mainContainer}>
         <Paper classes={{ root: classes.paperRoot }}>
           <div className={classes.cardDetailsContainer}>
@@ -322,6 +395,46 @@ function App() {
                 align="left"
                 id="name"
               />
+            </div>
+
+            {successData && (
+              <div className={classes.successContainer}>
+                <Typography
+                  variant="h6"
+                  classes={{ root: classes.successLabel }}
+                >
+                  {messages["ApiResponse.success"]}
+                </Typography>
+                <Typography
+                  variant="subtitle2"
+                  classes={{ root: classes.successDescription }}
+                >{`Request created with ID: ${
+                  successData.requestId
+                } at ${formatDateAndTime(
+                  new Date(successData.requestDate)
+                )}`}</Typography>
+              </div>
+            )}
+
+            {isError && (
+              <div className={classes.successContainer}>
+                <Typography
+                  variant="h6"
+                  classes={{ root: classes.failureLabel }}
+                >
+                  {messages["ApiResponse.failure"]}
+                </Typography>
+              </div>
+            )}
+
+            <div className={classes.submitContainer}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSubmitClick}
+              >
+                {messages["Button.submit"]}
+              </Button>
             </div>
           </div>
         </Paper>
